@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
-
+import { router } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
@@ -117,7 +117,10 @@ export default function HomeScreen() {
             <ThemedText style={styles.vacio}>No hay partidos programados para este día.</ThemedText>
           }
           renderItem={({ item }) => (
-            <ThemedView style={styles.fila}>
+            <TouchableOpacity
+              style={styles.fila}
+              onPress={() => router.push({ pathname: '/detalle', params: { partidoId: item.partido_id } })}
+            >
               <ThemedView style={styles.columnaEstado}>
                 <ThemedText style={styles.textoChico}>{renderEstado(item)}</ThemedText>
               </ThemedView>
@@ -125,7 +128,7 @@ export default function HomeScreen() {
                 <ThemedText style={styles.textoLiga}>{item.liga}</ThemedText>
                 <ThemedText>{renderMarcador(item)}</ThemedText>
               </ThemedView>
-            </ThemedView>
+            </TouchableOpacity>
           )}
         />
       )}
