@@ -1,98 +1,145 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+
+// Reemplazá esta IP por la de tu PC en la red local
+const API_URL = 'http://192.168.1.39:8000';
+
+type Partido = {
+  partido_id: number;
+  liga: string;
+  fecha: string;
+  local: string;
+  visitante: string;
+  goles_local: number | null;
+  goles_visitante: number | null;
+  estado: string;
+};
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [partidos, setPartidos] = useState<Partido[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [refrescando, setRefrescando] = useState(false);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
+  const cargarPartidos = useCallback(async () => {
+    try {
+      const respuesta = await fetch(`${API_URL}/partidos`);
+      const data = await respuesta.json();
+      setPartidos(data.partidos);
+    } catch (error) {
+      console.error('Error cargando partidos:', error);
+    } finally {
+      setCargando(false);
+      setRefrescando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarPartidos();
+  }, [cargarPartidos]);
+
+  const onRefresh = () => {
+    setRefrescando(true);
+    cargarPartidos();
+  };
+
+  const formatearHora = (fechaUtc: string) => {
+    const fecha = new Date(fechaUtc);
+    fecha.setHours(fecha.getHours() - 3); // UTC-3 Argentina
+    return fecha.toISOString().substring(11, 16);
+  };
+
+  const renderEstado = (partido: Partido) => {
+    if (partido.estado === 'FINISHED') return 'Final';
+    if (partido.estado === 'IN_PLAY') return '🔴 VIVO';
+    if (partido.estado === 'PAUSED') return '⏸️ ET';
+    return formatearHora(partido.fecha);
+  };
+
+  const renderMarcador = (partido: Partido) => {
+    if (partido.goles_local !== null && partido.goles_visitante !== null) {
+      return `${partido.local}  ${partido.goles_local} - ${partido.goles_visitante}  ${partido.visitante}`;
+    }
+    return `${partido.local} vs ${partido.visitante}`;
+  };
+
+  if (cargando) {
+    return (
+      <ThemedView style={styles.centrado}>
+        <ActivityIndicator size="large" />
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    );
+  }
+
+  return (
+    <ThemedView style={styles.contenedor}>
+      <ThemedText type="title" style={styles.titulo}>
+        🏠 Partidos de hoy
+      </ThemedText>
+      <FlatList
+        data={partidos}
+        keyExtractor={(item) => item.partido_id.toString()}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}
+        ListEmptyComponent={
+          <ThemedText style={styles.vacio}>No hay partidos programados para hoy.</ThemedText>
+        }
+        renderItem={({ item }) => (
+          <ThemedView style={styles.fila}>
+            <ThemedView style={styles.columnaEstado}>
+              <ThemedText style={styles.textoChico}>{renderEstado(item)}</ThemedText>
+            </ThemedView>
+            <ThemedView style={styles.columnaPartido}>
+              <ThemedText style={styles.textoLiga}>{item.liga}</ThemedText>
+              <ThemedText>{renderMarcador(item)}</ThemedText>
+            </ThemedView>
+          </ThemedView>
+        )}
+      />
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  contenedor: {
+    flex: 1,
+    paddingTop: 60,
+    paddingHorizontal: 16,
+  },
+  centrado: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  titulo: {
+    marginBottom: 16,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  fila: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#666',
+  },
+  columnaEstado: {
+    width: 70,
+    justifyContent: 'center',
+  },
+  columnaPartido: {
+    flex: 1,
+  },
+  textoChico: {
+    fontSize: 12,
+    opacity: 0.7,
+  },
+  textoLiga: {
+    fontSize: 11,
+    opacity: 0.6,
+    marginBottom: 2,
+  },
+  vacio: {
+    textAlign: 'center',
+    marginTop: 40,
+    opacity: 0.6,
   },
 });
