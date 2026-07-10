@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet } from 'react-native';
+import { useEffect, useState, useCallback } from 'react';
+import { StyleSheet, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
-// Reemplazá esta IP por la de tu PC en la red local
 const API_URL = 'http://192.168.1.39:8000';
 
 type Partido = {
@@ -18,14 +17,29 @@ type Partido = {
   estado: string;
 };
 
+const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const MESES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+
+function formatearFechaISO(fecha: Date) {
+  const y = fecha.getFullYear();
+  const m = String(fecha.getMonth() + 1).padStart(2, '0');
+  const d = String(fecha.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export default function HomeScreen() {
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date());
   const [partidos, setPartidos] = useState<Partido[]>([]);
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
 
-  const cargarPartidos = useCallback(async () => {
+  const cargarPartidos = useCallback(async (fecha: Date) => {
     try {
-      const respuesta = await fetch(`${API_URL}/partidos`);
+      const fechaStr = formatearFechaISO(fecha);
+      const respuesta = await fetch(`${API_URL}/partidos?fecha=${fechaStr}`);
       const data = await respuesta.json();
       setPartidos(data.partidos);
     } catch (error) {
@@ -37,17 +51,24 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    cargarPartidos();
-  }, [cargarPartidos]);
+    setCargando(true);
+    cargarPartidos(fechaSeleccionada);
+  }, [fechaSeleccionada, cargarPartidos]);
 
   const onRefresh = () => {
     setRefrescando(true);
-    cargarPartidos();
+    cargarPartidos(fechaSeleccionada);
+  };
+
+  const cambiarDia = (delta: number) => {
+    const nuevaFecha = new Date(fechaSeleccionada);
+    nuevaFecha.setDate(nuevaFecha.getDate() + delta);
+    setFechaSeleccionada(nuevaFecha);
   };
 
   const formatearHora = (fechaUtc: string) => {
     const fecha = new Date(fechaUtc);
-    fecha.setHours(fecha.getHours() - 3); // UTC-3 Argentina
+    fecha.setHours(fecha.getHours() - 3);
     return fecha.toISOString().substring(11, 16);
   };
 
@@ -65,38 +86,49 @@ export default function HomeScreen() {
     return `${partido.local} vs ${partido.visitante}`;
   };
 
-  if (cargando) {
-    return (
-      <ThemedView style={styles.centrado}>
-        <ActivityIndicator size="large" />
-      </ThemedView>
-    );
-  }
+  const nombreDia = `${DIAS[fechaSeleccionada.getDay()]} ${fechaSeleccionada.getDate()} de ${MESES[fechaSeleccionada.getMonth()]}`;
 
   return (
     <ThemedView style={styles.contenedor}>
+      <ThemedView style={styles.filaFecha}>
+        <TouchableOpacity onPress={() => cambiarDia(-1)} style={styles.botonFlecha}>
+          <ThemedText style={styles.flecha}>⬅️</ThemedText>
+        </TouchableOpacity>
+        <ThemedText style={styles.textoFecha}>{nombreDia}</ThemedText>
+        <TouchableOpacity onPress={() => cambiarDia(1)} style={styles.botonFlecha}>
+          <ThemedText style={styles.flecha}>➡️</ThemedText>
+        </TouchableOpacity>
+      </ThemedView>
+
       <ThemedText type="title" style={styles.titulo}>
-        🏠 Partidos de hoy
+        🏠 Partidos
       </ThemedText>
-      <FlatList
-        data={partidos}
-        keyExtractor={(item) => item.partido_id.toString()}
-        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}
-        ListEmptyComponent={
-          <ThemedText style={styles.vacio}>No hay partidos programados para hoy.</ThemedText>
-        }
-        renderItem={({ item }) => (
-          <ThemedView style={styles.fila}>
-            <ThemedView style={styles.columnaEstado}>
-              <ThemedText style={styles.textoChico}>{renderEstado(item)}</ThemedText>
+
+      {cargando ? (
+        <ThemedView style={styles.centrado}>
+          <ActivityIndicator size="large" />
+        </ThemedView>
+      ) : (
+        <FlatList
+          data={partidos}
+          keyExtractor={(item) => item.partido_id.toString()}
+          refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}
+          ListEmptyComponent={
+            <ThemedText style={styles.vacio}>No hay partidos programados para este día.</ThemedText>
+          }
+          renderItem={({ item }) => (
+            <ThemedView style={styles.fila}>
+              <ThemedView style={styles.columnaEstado}>
+                <ThemedText style={styles.textoChico}>{renderEstado(item)}</ThemedText>
+              </ThemedView>
+              <ThemedView style={styles.columnaPartido}>
+                <ThemedText style={styles.textoLiga}>{item.liga}</ThemedText>
+                <ThemedText>{renderMarcador(item)}</ThemedText>
+              </ThemedView>
             </ThemedView>
-            <ThemedView style={styles.columnaPartido}>
-              <ThemedText style={styles.textoLiga}>{item.liga}</ThemedText>
-              <ThemedText>{renderMarcador(item)}</ThemedText>
-            </ThemedView>
-          </ThemedView>
-        )}
-      />
+          )}
+        />
+      )}
     </ThemedView>
   );
 }
@@ -111,6 +143,22 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  filaFecha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  botonFlecha: {
+    padding: 8,
+  },
+  flecha: {
+    fontSize: 18,
+  },
+  textoFecha: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   titulo: {
     marginBottom: 16,
