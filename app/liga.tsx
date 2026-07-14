@@ -5,8 +5,7 @@ import { StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, ScrollView }
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
-const API_URL = 'http://192.168.1.40:8000';
-
+import { API_URL } from '@/utils/config';
 type EquipoTabla = {
   equipo: string;
   pj: number;
