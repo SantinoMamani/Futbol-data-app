@@ -5,7 +5,7 @@ import { StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
-const API_URL = 'http://192.168.1.39:8000';
+const API_URL = 'http://192.168.1.40:8000';
 
 type Stats = {
   total_partidos: number;
